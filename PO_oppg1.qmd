@@ -1,0 +1,157 @@
+---
+title: "Prosjekt_oppgave"
+format: html
+editor: visual
+---
+
+```{r}
+library(tidyverse)
+library(readr)
+library(curl)
+library(haven)
+library(lubridate)
+library(reshape2)
+```
+
+```{r, options(timeout = 300)}
+# URLs of the data files
+urls <- c(
+  "https://www.chicagobooth.edu/boothsitecore/docs/dff/store-demos-customer-count/demo_stata.zip",
+  "https://www.chicagobooth.edu/boothsitecore/docs/dff/store-demos-customer-count/ccount_stata.zip",
+  "https://www.chicagobooth.edu/-/media/enterprise/centers/kilts/datasets/dominicks-dataset/movement_csv-files/wber.zip?la=en&hash=ABA2A1C91F8AE5685AC7DF0281850C326B41123A"
+)
+
+# Create directories to extract the files to
+dir.create("wber")
+
+# Download and extract the files
+for (i in seq_along(urls)) {
+  filename <- paste0("file", i, ".zip")
+  curl_download(urls[i], destfile = filename, quiet = TRUE)
+  if (i == 3) {
+    # Extract wber.zip to the "wber" directory
+    unzip(filename, exdir = "wber", junkpaths = TRUE)
+  } else {
+    # Extract all other files to the current directory
+    unzip(filename, junkpaths = TRUE)
+  }
+}
+
+# Read the files into data frames or tibbles
+data1 <- read_dta("demo.dta", encoding = "latin1")
+data2 <- read_dta("ccount.dta", encoding = "latin1")
+data3 <- read_csv("https://www.chicagobooth.edu/-/media/enterprise/centers/kilts/datasets/dominicks-dataset/upc_csv-files/upcber.zip?la=en&hash=2C153A04FF54A34A1FE84D1A3B8B24D215B8370D")
+data4 <- read_csv("wber/wber.csv")
+
+```
+
+```{r}
+category <- c("Analgesics","Bath Soap","Beer","Bottled Juices","Cereals",
+              "Cheeses","Cigarettes","Cookies","Crackers","Canned Soup",
+              "Dish Detergent","Front-end-candies","Frozen Dinners","Frozen Entrees",
+              "Frozen Juices","Fabric Softeners","Grooming Products","Laundry Detergents",
+              "Oatmeal","Paper Towels","Soft Drinks","Shampoos","Snack Crackers",
+              "Soaps","Toothbrushes","Canned Tuna","Toothpastes","Bathroom Tissues")
+
+letter2number <- function(x) {utf8ToInt(x) - utf8ToInt("A") + 1L}
+seed_number <- sum(letter2number("Magnus")) + sum(letter2number("John")) + sum(letter2number("Harald"))
+set.seed(seed_number)
+sample(category, 1)
+```
+
+```{r}
+beer <- merge(data3, data4, by="UPC")
+
+start_date <- as.Date("1989-09-14")
+
+#making date variable
+beer$DATE <- start_date + (beer$WEEK - 1) * 7
+
+beer <- beer %>% 
+  filter(DATE >= "1992-01-02") %>% 
+  filter(DATE <= "1992-12-31")
+ 
+```
+
+```{r}
+
+data2$date <- as.Date(data2$date, "%y%m%d")
+
+
+data2$date <- format(data2$date, "%Y-%m-%d")
+
+
+data2 <- data2[complete.cases(data2$date), ]
+
+
+data2 <- data2 %>% filter(date >= "1989-09-14")
+
+
+data2$date <- as.Date(data2$date)
+
+
+data2$WEEK <- as.integer((data2$date - as.Date("1989-09-14"))/7) + 1
+
+
+data2 <- data2 %>%
+  select(-date)
+
+
+count_weekly <- data2 %>%
+  group_by(store, WEEK) %>%
+  summarise_all(list(sum = sum))
+
+
+count_weekly <- count_weekly %>% 
+  rename(STORE := store)
+
+
+count_weekly$DATE <- start_date + (count_weekly$WEEK - 1) * 7
+
+
+count_weekly$DATE <- as.Date(count_weekly$DATE)
+
+
+count_weekly <- count_weekly %>% 
+  filter(DATE >= "1992-01-02") %>% 
+  filter(DATE <= "1992-12-31")
+
+df<- merge(beer, count_weekly, by = c("STORE", "WEEK", "DATE"))
+
+df <- df %>% 
+  filter(MOVE>0)
+```
+
+```{r}
+
+regex_liste <- c("BUDWEISER", "COORS", "BUSCH", "CORONA", "HEINEKEN" )
+
+regex <- paste(regex_liste, collapse = "|")
+
+df2<- df %>%
+  mutate(BRAND = str_extract(DESCRIP, regex), simplify = TRUE)
+
+df2 <- df2 %>%
+  filter(!is.na(BRAND))
+
+df2 <- df2 %>%
+  group_by(STORE, WEEK, DATE, BRAND) %>%
+  summarise(MOVE_SUM = sum(MOVE),
+            AVG_PROFIT = mean(PRICE),
+            SUM_PROFIT = sum(PROFIT),
+            AVG_PRICE = mean(PRICE),
+            beer_sum = mean(beer_sum))
+
+```
+
+```{r}
+data1 <- data1 %>% 
+  rename(STORE = store) %>% 
+  select(STORE, name, city, age9, age60, ethnic, educ, nocar, income, incsigma, hsizeavg, hsize1, hsize2, hsize34, hsize567, hh3plus, hh4plus, hhsingle, hhlarge, workwom, sinhouse, density, hval150, hval200, hvalmean, single, retired, unemp, wrkch5, wrkch17, nwrkch5, nwrkch17, wrkch, nwrkch, wrkwch, wrkwnch, telephn, mortgage, nwhite, poverty, shpcons, shphurr, shpavid, shpkstr, shpunft, shpbird, shpindx, shpindx, lat, long)
+
+df_final<- merge(df2, data1, by = "STORE")
+```
+
+```{r}
+write.table(df_final, file = "Data_po_1005.csv")
+```
