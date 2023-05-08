@@ -1,0 +1,164 @@
+---
+title: "Data til Prosjekt oppgave"
+format: html
+editor: visual
+author: "9, 15, 18"
+---
+
+```{r}
+#load packages to use in the project
+library(tidyverse)
+library(readr)
+library(curl)
+library(haven)
+library(lubridate)
+library(reshape2)
+```
+
+```{r, options(timeout = 300)}
+# URLs of the data files
+urls <- c(
+  "https://www.chicagobooth.edu/boothsitecore/docs/dff/store-demos-customer-count/demo_stata.zip",
+  "https://www.chicagobooth.edu/boothsitecore/docs/dff/store-demos-customer-count/ccount_stata.zip",
+  "https://www.chicagobooth.edu/-/media/enterprise/centers/kilts/datasets/dominicks-dataset/movement_csv-files/wber.zip?la=en&hash=ABA2A1C91F8AE5685AC7DF0281850C326B41123A"
+)
+
+# Create directories to extract the files to
+dir.create("wber")
+
+# Download and extract the files
+for (i in seq_along(urls)) {
+  filename <- paste0("file", i, ".zip")
+  curl_download(urls[i], destfile = filename, quiet = TRUE)
+  if (i == 3) {
+    # Extract wber.zip to the "wber" directory
+    unzip(filename, exdir = "wber", junkpaths = TRUE)
+  } else {
+    # Extract all other files to the current directory
+    unzip(filename, junkpaths = TRUE)
+  }
+}
+
+# Read the files into data frames or tibbles
+data1 <- read_dta("demo.dta", encoding = "latin1")
+data2 <- read_dta("ccount.dta", encoding = "latin1")
+data3 <- read_csv("https://www.chicagobooth.edu/-/media/enterprise/centers/kilts/datasets/dominicks-dataset/upc_csv-files/upcber.zip?la=en&hash=2C153A04FF54A34A1FE84D1A3B8B24D215B8370D")
+data4 <- read_csv("wber/wber.csv")
+
+```
+
+```{r}
+category <- c("Analgesics","Bath Soap","Beer","Bottled Juices","Cereals",
+              "Cheeses","Cigarettes","Cookies","Crackers","Canned Soup",
+              "Dish Detergent","Front-end-candies","Frozen Dinners","Frozen Entrees",
+              "Frozen Juices","Fabric Softeners","Grooming Products","Laundry Detergents",
+              "Oatmeal","Paper Towels","Soft Drinks","Shampoos","Snack Crackers",
+              "Soaps","Toothbrushes","Canned Tuna","Toothpastes","Bathroom Tissues")
+
+letter2number <- function(x) {utf8ToInt(x) - utf8ToInt("A") + 1L}
+seed_number <- sum(letter2number("Magnus")) + sum(letter2number("John")) + sum(letter2number("Harald"))
+set.seed(seed_number)
+sample(category, 1)
+```
+
+```{r}
+data4 <- data4 %>% 
+  mutate(SALES = PRICE * MOVE/QTY) #Make the sales variable 
+
+beer <- merge(data3, data4, by="UPC") #start to merge dataset 3 and 4
+
+start_date <- as.Date("1989-09-14") 
+
+#making date variable
+beer$DATE <- start_date + (beer$WEEK - 1) * 7
+
+beer <- beer %>% 
+  filter(DATE >= "1992-01-02") %>% #All the dates in year 1992
+  filter(DATE <= "1992-12-31")
+ 
+```
+
+```{r}
+
+data2$date <- as.Date(data2$date, "%y%m%d")
+
+
+data2$date <- format(data2$date, "%Y-%m-%d") #convert to date format
+
+
+data2 <- data2[complete.cases(data2$date), ] #remove NA
+
+
+data2 <- data2 %>% filter(date >= "1989-09-14")
+
+
+data2$date <- as.Date(data2$date) #remove dates before start date
+
+
+data2$WEEK <- as.integer((data2$date - as.Date("1989-09-14"))/7) + 1
+#create week variable
+
+data2 <- data2 %>%
+  select(-date) #remove date variable
+
+
+count_weekly <- data2 %>% #create count_weekly dataset
+  group_by(store, WEEK) %>% #group by store and week
+  summarise_all(list(sum = sum)) #summarise all variables
+
+
+count_weekly <- count_weekly %>%  #rename store variable
+  rename(STORE := store)
+
+
+count_weekly$DATE <- start_date + (count_weekly$WEEK - 1) * 7 #create date variable
+
+
+count_weekly$DATE <- as.Date(count_weekly$DATE) #convert to date format
+
+
+
+count_weekly <- count_weekly %>% 
+  filter(DATE >= "1992-01-02") %>%  #remove dates before start date
+  filter(DATE <= "1992-12-31")      #remove dates after end date
+
+df<- merge(beer, count_weekly, by = c("STORE", "WEEK", "DATE"))  #merge beer and count_weekly
+
+df <- df %>% 
+  filter(MOVE>0) #remove MOVE = 0
+```
+
+```{r}
+
+regex_liste <- c("BUDWEISER", "COORS", "BUSCH", "CORONA", "HEINEKEN" )
+#create regex list
+regex <- paste(regex_liste, collapse = "|") #create regex
+
+df2<- df %>%
+  mutate(BRAND = str_extract(DESCRIP, regex), simplify = TRUE) #create brand variable
+
+
+df2 <- df2 %>%
+  filter(!is.na(BRAND)) #remove NA
+
+df2 <- df2 %>% 
+  select(STORE, DATE, PROFIT, SALES, BRAND, MOVE, PRICE, WEEK) %>% 
+  distinct() %>% 
+  drop_na() #Select the variables and removing duplicates with distinct, then removing NA 
+ 
+df2 <- df2 %>% 
+  group_by(STORE, WEEK, BRAND , DATE, PROFIT) %>% 
+  summarise(Sum_Sales = sum(SALES), AVG_PRICE = mean(PRICE)) #Summarise the sales and average price
+```
+
+```{r}
+data1 <- data1 %>% 
+  rename(STORE = store) %>% #rename store variable
+  select(STORE, name, city, ethnic, educ, nocar, income, incsigma, hsizeavg, hsize1, hsize2, hsize34, hh3plus, hh4plus, hhsingle, workwom, density,  single, retired, unemp,telephn, mortgage, nwhite, poverty, lat, long) #select variables
+
+df_final<- merge(df2, data1, by = "STORE") #Merge dataframes
+```
+
+```{r}
+write.table(df_final, file = "Data_po_1005_2.csv") #write df_final to csv
+```
