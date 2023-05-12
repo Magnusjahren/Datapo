@@ -183,6 +183,20 @@ map %>%
   addLegend(pal = pal, values = map$sales, title = "Total Sales ($)", position = "bottomright" ) #adding the legend
 ```
 
+Feedback:
+
+Vær sikker over hva plotsene skal vise, ikke gjør det overkomplisert
+
+Vær forsiktig med pie-chart helst bare 2 ting som sammenlignes og husk å vise prosent slik at det er lett leselig
+
+Vær konsistent på alle plots små store bokstaver, tydelig tittel, benevning og verdi som aksene viser
+
+Kanskje sammenligne salg med kvinner, menn? Unge voksne, eldre? familier med barn, single? 
+
+Prøve å lage funksjon med de 5 største ølmerkene mtp salg
+
+Vi har laget mange plots med sales, kanskje bruke andre variabler, f.eks antall? Hva er mest profitabelt/antall av 6 pakninger mot 12pakk eller andre.
+
 **Kan dataene benyttes til å planlegge nye utsalg? Dersom konsernledelsen ønsker å etablere et nytt utsalg, hvordan kan de benytte dataene til å finne den beste lokasjonen?**
 
 Butikkdata kan brukes til å kvantifisere den geografiske påvirkningen av hver butikk på markedet. En effektiv tilnærming er å tildele hver butikk en egen sirkel som er plassert geografisk korrekt og representerer butikkens årlige inntekt. Sirkelen antyder hvor mye av området rundt butikken som genererer inntekt. Ved å opprette et slikt kart kan vi identifisere områder der butikkjeden ikke genererer inntekter og anta at det kan være et potensielt inntektsgrunnlag i disse områdene.
