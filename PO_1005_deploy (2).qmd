@@ -1,0 +1,237 @@
+---
+title: "Prosjekt oppgave SOK-1005"
+author: "9, 15, 18"
+subtitle: "Vår 2023"
+date: "05-31-2023"
+abstract: "[Link til Github repo](https://github.com/Magnusjahren/Datapo)"
+format: 
+  html:
+    toc: true
+    toc-location: left
+    code-fold: true
+    warning: FALSE
+    message: FALSE
+    title-block-style: default
+    title-block-banner: "#26A5DB"
+---
+
+```{r}
+#load packages
+library(tidyverse)
+library(readr)
+library(leaflet)
+library(htmltools)
+library(lubridate)
+```
+
+```{r}
+#load data
+df_final <- read.csv("https://raw.githubusercontent.com/Magnusjahren/Datapo/main/Data_po_1005_2.csv", sep = " ")
+
+#df_final$DATE <- as.Date(df_final$DATE)
+
+#mutate data to get lat and long in the right format for leaflet
+#mutate date variable to date format
+df_final <- df_final %>%
+  mutate(lat = lat/10000) %>%
+  mutate(long = long/-10000) %>%
+  mutate(DATE = as.Date(DATE))
+```
+
+# Oppgave 2
+
+Denne figuren viser ukentlige salgstall for Chicago i perioden 1992-1993. Figuren viser også fordelingen av salg av de 5 ølmerkene vi har valgt. Vi mener at denne figuren er relevant fordi den viser hvilke uker det selges mye øl og hvilke merker det selges mest av.
+
+```{r}
+df_final$BRAND <- str_to_title(df_final$BRAND)
+df_final %>% #filtering for store 12
+  filter(STORE == 12) %>% #grouping by brand
+  group_by(BRAND) %>%  #summarising sales
+ggplot(aes(x = DATE, y = Sum_Sales, fill = BRAND)) + #plotting
+  geom_col() +
+  labs(title = "Weekly sales of beer in Chicago by brand",
+       subtitle = "1992",
+       x = "Date",
+       y = "Sales in USD",
+       color = "Brand") +
+  theme_bw() +
+  theme(legend.position = "bottom",
+        legend.title = element_blank(),
+        axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+```{r}
+df_final1 <- df_final %>% #making a new dataframe to plot the pie chart
+  filter(STORE == 12) %>%
+  group_by(BRAND) %>%
+  summarise(Sum_Sales = sum(Sum_Sales)) %>% 
+  mutate(Percent = Sum_Sales / sum(Sum_Sales) * 100)  # Calculate the percentage
+
+df_final1$BRAND <- str_to_title(df_final1$BRAND)
+
+pie1 <-ggplot(df_final1,aes(x="", y=Sum_Sales, fill=BRAND)) + #plotting the pie chart
+  geom_bar(width = 1, stat = "identity") +
+  coord_polar("y", start=0) +
+  theme_void() +
+  labs(title = "Proportions of sales for beer brands", fill = "Brand")+
+  geom_text(aes(label = paste0(round(Percent, 1), "%")), position = position_stack(vjust = 0.5))
+```
+
+```{r}
+df_final2 <- df_final %>% #making a new dataframe to plot the pie chart
+  filter(STORE == 12) %>% #filtering for store 12
+  rename(unemployed = unemp) %>% 
+  rename(education = educ) %>% 
+  rename(workingwoman = workwom) %>% 
+  select(single, retired, unemployed, education, poverty, workingwoman) %>% #selecting the variables we want to plot
+  pivot_longer(cols = c("single", "retired", "unemployed", "education", "poverty", "workingwoman"), names_to = "name", values_to = "val") %>% #making the data long
+  unique()
+
+df_final2$name <- str_to_title(df_final2$name)
+
+df_final2[6,1] <- "Working woman"
+
+```
+
+```{r}
+bar2 <- ggplot(df_final2, aes(x = name, y = val, fill = name)) +
+  geom_bar(stat = "identity") +
+  theme_minimal() +
+  labs(title = "Customer share of beer sales in Chicago", x = "Category", y = "Value", fill = "Category") +
+  geom_text(aes(label = paste0(round(val * 100, 1), "%")), vjust = -0.5, size = 3)+
+  theme_void()
+```
+
+I sektor diagrammet ser vi prosentvis fordeling av hvilke merker som selges mest. I søylediagrammet ser vi prosentvis fordeling av noen kundegrupper. Vi mener disse figurene er relevante fordi de gir et innblikk i øl markedet for utsalget.
+
+```{r fig.height=6}
+#plotting the two pie charts side by side
+  gridExtra::grid.arrange(pie1,bar2, nrow=2)
+#Long run time, optional run  pie1, pie2
+```
+
+Salgsresultater: Oversikt over totalt salgsvolum, inntekt og enheter solgt.
+
+Salgstrender: Analyse av salgstrender over tid og sesongmessige mønstre.
+
+Produktytelse: Vurdering av mest solgte produkter, produkter med høy margin.
+
+Markedsandel: Evaluering av markedsandelen i forhold til konkurrenter og bransjen.
+
+Anbefalinger: Tiltak eller strategier for å forbedre salgsresultatene.
+
+# Oppgave 3
+
+Samlet salgsytelse: Oversikt over konsernets totale salgsytelse per måned.
+
+Markedsandel: Evaluering av konsernets markedsandel i forhold til konkurrenter og bransjen.
+
+Produktkategorier: Gjennomgang av salgsytelse for ulike produktkategorier eller segmenter.
+
+Salgstrender: Analyse av salgstrender over tid og sesongmessige mønstre.
+
+Konkurrentanalyse: Evaluering av konkurrentenes ytelse og markedsposisjon.
+
+Økonomiske resultater: Oversikt over økonomiske resultater og relevante indikatorer.
+
+Anbefalinger og handlingsplaner: Forslag til tiltak for å forbedre konsernets salgsresultater.
+
+Dette søylediagrammet viser månedlig utvikling av ølsalg i alle Dominics butikker for perioden 1992-1993. Dette diagrammet er relevant fordi den viser hvilke merker som selges og hvilke måneder det selges mest.
+
+```{r}
+df_opg3 <- df_final %>% 
+  mutate(profit = (Sum_Sales*PROFIT)/100) %>% 
+  mutate(month = month(DATE,label = TRUE))#making a profit variable with actual $value
+
+df_opg3 %>% 
+  ggplot(aes(x=month, y=Sum_Sales/1000, fill=BRAND)) +
+  geom_col(position = "dodge")+
+  theme_minimal() +
+  theme(legend.title = element_blank()) +
+  labs(title = "Total beer sales for Dominic's and marketshare", x = "Monthly(1992)", y = "Thousand
+USD")
+  
+```
+
+Dette søylediagrammet viser månedlig profitt i alle utsalgene. Figuren er relevant fordi den viser hvilke måneder som er mest profitable.
+
+```{r}
+df_plot <- df_opg3 %>% 
+  group_by(month) %>% 
+  summarise(sum(profit), sum(Sum_Sales)) #Make a dataframe with the monthly sum of sales and profit
+
+df_plot <- df_plot %>% 
+  rename(sales = `sum(Sum_Sales)`) %>% 
+  rename(profit = `sum(profit)`)  #Rename to easier names
+ 
+#df_plot$variable <- str_to_title(df_plot$variable)
+
+df_plot %>% 
+  ggplot(aes(x = month, y = profit/1000)) + 
+  geom_bar(position = "dodge", stat= "identity", fill = "cornflowerblue") + #Make a bar plot and using dodge to get a bar for each variable
+  theme_bw() +
+  labs(title = "Monthly profit in all stores", x = "Month", y = " Thousand USD") #Adding labels
+```
+
+Figuren viser regresjon av salg og profitt i for alle utsalgene. Regresjonen viser sammenhengen mellom salg og profitt. Koeffisienten har stigningstallet 0.066, som baseres på hver dollar av salg. Det kan være interessant dersom skal projektere en økning av totalt utsalg. Dersom de ønsker 1000 dollar mer i profitt, må det økes salg med omtrent 15000 dollar.
+
+```{r}
+df_reg <- df_opg3 %>% 
+  group_by(DATE) %>%  #Group by date
+  summarise(sum(profit), sum(Sum_Sales)) %>% #Summarise
+  rename(sales = `sum(Sum_Sales)`) %>%  #Rename to easier names
+  rename(profit = `sum(profit)`)    #Rename to easier names
+
+ lm(profit ~ sales, data = df_reg)       #Run regression
+
+df_reg %>% 
+  ggplot(aes(x = sales, y = profit)) +  #Plot
+  geom_point() +                        #Add points
+  theme_minimal() +                     #Minimal theme
+  geom_smooth(method = lm) +            #Add regression line
+  labs(x = "Sales USD", y = "Profit USD", title = "Regression of sales and profit")
+```
+
+# Oppgave 4
+
+Vi har valgt å bruke et kart fordi datasettet innholdt koordinater for alle utsalgene. Dette kunne vi benytte for å planlegge nye utsalg. Vi har laget et kart som viser lokasjoner og salgstall for utsalgene.
+
+```{r}
+df_test <- df_final %>% #making a new dataframe to plot the pie chart
+  group_by(STORE) %>%  #grouping by store
+  summarise(sales = sum(Sum_Sales)) #summarising sales
+            
+df_map <- df_final %>%  #making a new dataframe to plot the leaflet map
+  select(city, lat, long, name, Sum_Sales, STORE) %>% #selecting the variables we want to plot
+  distinct(STORE, lat, long, .keep_all = TRUE)
+
+map <- merge(df_map, df_test) %>% #merging the two dataframes
+  drop_na()
+```
+
+```{r}
+
+pal <- colorNumeric(c(palette = "red","green"), domain = map$sales) #making a color palette
+#plotting the leaflet map 
+
+map %>%
+  leaflet() %>% #adding the map
+  addTiles() %>% #adding the tiles
+  addCircleMarkers(
+    ~ long, ~ lat,
+    label = ~ paste(city, "total income: $", sales),
+    radius = ~ sales/4000,
+    color = ~ pal(sales),
+    fillOpacity = 0.5,
+    stroke = TRUE,
+    weight = 1,
+    opacity = 1) %>% #adding the circle markers, with the size of the circle based on sales, and the color based on the color palette.
+  addLegend(pal = pal, values = map$sales, title = "Total beer sales ($)", position = "bottomright" ) #adding the legend
+```
+
+**Kan dataene benyttes til å planlegge nye utsalg? Dersom konsernledelsen ønsker å etablere et nytt utsalg, hvordan kan de benytte dataene til å finne den beste lokasjonen?**
+
+Butikkdata kan brukes til å kvantifisere den geografiske påvirkningen av hver butikk på markedet. En effektiv tilnærming er å tildele hver butikk en egen sirkel som er plassert geografisk korrekt og representerer butikkens årlige inntekt. Sirkelen antyder hvor mye av området rundt butikken som genererer inntekt. Ved å opprette et slikt kart kan vi identifisere områder der butikkjeden ikke genererer inntekter og anta at det kan være et potensielt inntektsgrunnlag i disse områdene.
+
+[Link til Github repo](https://github.com/Magnusjahren/Datapo)
